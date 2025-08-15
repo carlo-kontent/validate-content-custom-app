@@ -79,10 +79,6 @@ const ValidationResultItem = ({ result }) => {
               </h3>
               <div className='flex items-center space-x-4 mt-1 text-sm text-gray-500'>
                 <span className='flex items-center'>
-                  <FileText className='h-4 w-4 mr-1' />
-                  {contentTypeName}
-                </span>
-                <span className='flex items-center'>
                   <Calendar className='h-4 w-4 mr-1' />
                   {formatDate(validationDate)}
                 </span>

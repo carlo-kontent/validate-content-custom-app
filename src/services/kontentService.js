@@ -76,130 +76,7 @@ class KontentService {
     }
   }
 
-  // Validate a single content item
-  async validateContentItem(
-    itemId,
-    languageId = '00000000-0000-0000-0000-000000000000'
-  ) {
-    if (!this.isInitialized) {
-      throw new Error('Kontent.ai service not initialized');
-    }
-
-    try {
-      // Get the content item first to get its details
-      const itemResponse = await this.managementClient
-        .getContentItem(itemId)
-        .toPromise();
-
-      const item = itemResponse.data;
-
-      // Validate the content item using the MAPI validate endpoint
-      const validationResponse = await this.managementClient
-        .validateContentItem()
-        .byItemId(itemId)
-        .byLanguageId(languageId)
-        .toPromise();
-
-      const validation = validationResponse.data;
-
-      return {
-        itemId: item.id,
-        itemName: item.name,
-        contentTypeId: item.type.id,
-        contentTypeName: item.type.name,
-        languageId: languageId,
-        isValid: validation.isValid,
-        errors: validation.errors || [],
-        warnings: validation.warnings || [],
-        validationDate: new Date().toISOString(),
-        itemUrl: this.getItemUrl(item.id, item.codename),
-        editUrl: this.getEditUrl(item.id, languageId),
-      };
-    } catch (error) {
-      console.error('Error validating content item:', error);
-
-      // Return error result
-      return {
-        itemId: itemId,
-        itemName: 'Unknown',
-        contentTypeId: 'unknown',
-        contentTypeName: 'Unknown',
-        languageId: languageId,
-        isValid: false,
-        errors: [
-          {
-            message: error.message || 'Failed to validate content item',
-            code: 'VALIDATION_ERROR',
-            elementId: null,
-          },
-        ],
-        warnings: [],
-        validationDate: new Date().toISOString(),
-        itemUrl: null,
-        editUrl: null,
-      };
-    }
-  }
-
-  // Validate multiple content items
-  async validateContentItems(
-    itemIds,
-    languageId = '00000000-0000-0000-0000-000000000000',
-    onProgress
-  ) {
-    if (!this.isInitialized) {
-      throw new Error('Kontent.ai service not initialized');
-    }
-
-    const results = [];
-    const total = itemIds.length;
-
-    for (let i = 0; i < total; i++) {
-      const itemId = itemIds[i];
-
-      try {
-        const result = await this.validateContentItem(itemId, languageId);
-        results.push(result);
-
-        // Call progress callback
-        if (onProgress) {
-          onProgress(i + 1, total);
-        }
-
-        // Add small delay to avoid overwhelming the API
-        if (i < total - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      } catch (error) {
-        console.error(`Error validating item ${itemId}:`, error);
-
-        // Add error result
-        results.push({
-          itemId: itemId,
-          itemName: 'Unknown',
-          contentTypeId: 'unknown',
-          contentTypeName: 'Unknown',
-          languageId: languageId,
-          isValid: false,
-          errors: [
-            {
-              message: error.message || 'Failed to validate content item',
-              code: 'VALIDATION_ERROR',
-              elementId: null,
-            },
-          ],
-          warnings: [],
-          validationDate: new Date().toISOString(),
-          itemUrl: null,
-          editUrl: null,
-        });
-      }
-    }
-
-    return results;
-  }
-
-  // Validate all content items
+  // Validate all content items using async validation flow
   async validateAllContentItems(
     languageId = '00000000-0000-0000-0000-000000000000',
     onProgress
@@ -209,11 +86,97 @@ class KontentService {
     }
 
     try {
-      // Get all content items
       const items = await this.getContentItems();
-      const itemIds = items.map((item) => item.id);
+      console.log(
+        `Found ${items.length} content items. Sending for validation...`
+      );
 
-      return await this.validateContentItems(itemIds, languageId, onProgress);
+      const payload = {
+        items: items.map((item) => ({
+          id: item.id,
+          language: { id: languageId },
+        })),
+      };
+
+      const baseUrl = `https://manage.kontent.ai/v2/projects/${kontentConfig.environmentId}/validate-async`;
+
+      // Step 1: Start validation
+      const startResponse = await fetch(baseUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${kontentConfig.managementApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!startResponse.ok) {
+        throw new Error(`Validation start failed: ${startResponse.status}`);
+      }
+
+      const startData = await startResponse.json();
+      const taskId = startData.id;
+
+      // Step 2: Poll for progress
+      const taskUrl = `${baseUrl}/tasks/${taskId}`;
+      let status = 'queued';
+      let attempts = 0;
+
+      while (status !== 'finished' && attempts < 20) {
+        const progressResponse = await fetch(taskUrl, {
+          headers: {
+            Authorization: `Bearer ${kontentConfig.managementApiKey}`,
+          },
+        });
+
+        const progressData = await progressResponse.json();
+        status = progressData.status;
+
+        if (onProgress) {
+          onProgress(attempts + 1, 20);
+        }
+
+        if (status !== 'finished') {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          attempts++;
+        }
+      }
+
+      if (status !== 'finished') {
+        throw new Error('Validation task did not finish in time');
+      }
+
+      // Step 3: Fetch validation issues
+      const issuesUrl = `${taskUrl}/issues`;
+      const issuesResponse = await fetch(issuesUrl, {
+        headers: {
+          Authorization: `Bearer ${kontentConfig.managementApiKey}`,
+        },
+      });
+
+      const issuesData = await issuesResponse.json();
+      const results = items.map((item) => {
+        const issue = issuesData.issues.find((i) => i.item.id === item.id);
+        return {
+          itemId: item.id,
+          itemName: item.name,
+          contentTypeId: item.type?.id || 'unknown',
+          languageId,
+          isValid: !issue?.issues?.length,
+          errors:
+            issue?.issues?.map((i) => ({
+              message: i.messages.join('\n'),
+              elementId: i.element?.id || null,
+            })) || [],
+          warnings: [],
+          validationDate: new Date().toISOString(),
+          itemUrl: this.getItemUrl(item.id, item.codename),
+          editUrl: this.getEditUrl(item.id, languageId),
+          rawResponse: issue || null,
+        };
+      });
+
+      return results;
     } catch (error) {
       console.error('Error validating all content items:', error);
       throw error;
