@@ -27,10 +27,6 @@
     @apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500;
   }
 
-  .btn-success {
-    @apply btn bg-success-600 text-white hover:bg-success-700 focus:ring-success-500;
-  }
-
   .btn-error {
     @apply btn bg-error-600 text-white hover:bg-error-700 focus:ring-error-500;
   }

@@ -7,6 +7,14 @@ const initialState = {
   totalItems: 0,
   processedItems: 0,
 
+  // Detailed progress tracking
+  currentItem: null,
+  currentElement: null,
+  currentValidationStep: '',
+  validationStepProgress: 0,
+  totalValidationSteps: 0,
+  validationStartTime: null,
+
   // Content data
   contentItems: [],
   contentTypes: [],
@@ -16,15 +24,10 @@ const initialState = {
   errors: [],
   warnings: [],
 
-  // UI state
-  selectedContentType: null,
-  selectedContentItem: null,
-  showOnlyErrors: false,
-  showOnlyWarnings: false,
-
   // Filters and search
   searchTerm: '',
   statusFilter: 'all', // all, valid, invalid, warning
+  collectionFilter: 'all', // all, or specific collection ID
 
   // Pagination
   currentPage: 1,
@@ -36,27 +39,53 @@ export const useValidationStore = create((set, get) => ({
 
   // Validation actions
   startValidation: () =>
-    set({
+    set((state) => ({
       isValidationRunning: true,
       validationProgress: 0,
       processedItems: 0,
+      currentItem: null,
+      currentElement: null,
+      currentValidationStep: '',
+      validationStepProgress: 0,
+      totalValidationSteps: 0,
       validationResults: [],
       errors: [],
       warnings: [],
-    }),
+      // Ensure totalItems is set from contentItems if available
+      totalItems: state.contentItems.length || 0,
+      // Add timestamp for tracking how long validation has been running
+      validationStartTime: new Date().toISOString(),
+    })),
 
   stopValidation: () =>
     set({
       isValidationRunning: false,
       validationProgress: 0,
+      currentItem: null,
+      currentElement: null,
+      currentValidationStep: '',
+      validationStepProgress: 0,
+      totalValidationSteps: 0,
     }),
 
   updateProgress: (processed, total) => {
-    const progress = total > 0 ? Math.round((processed / total) * 100) : 0;
+    // Calculate percentage from processed/total
+    const calculatedProgress =
+      total > 0 ? Math.round((processed / total) * 100) : 0;
     set({
       processedItems: processed,
       totalItems: total,
-      validationProgress: progress,
+      validationProgress: calculatedProgress,
+    });
+  },
+
+  updateDetailedProgress: (item, element, step, stepProgress, totalSteps) => {
+    set({
+      currentItem: item,
+      currentElement: element,
+      currentValidationStep: step,
+      validationStepProgress: stepProgress,
+      totalValidationSteps: totalSteps,
     });
   },
 
@@ -76,27 +105,22 @@ export const useValidationStore = create((set, get) => ({
     });
   },
 
-  setContentItems: (items) => set({ contentItems: items }),
+  setContentItems: (items) =>
+    set({
+      contentItems: items,
+      totalItems: items.length,
+    }),
   setContentTypes: (types) => set({ contentTypes: types }),
 
   // UI actions
-  setSelectedContentType: (type) => set({ selectedContentType: type }),
-  setSelectedContentItem: (item) => set({ selectedContentItem: item }),
-  setShowOnlyErrors: (show) => set({ showOnlyErrors: show }),
-  setShowOnlyWarnings: (show) => set({ showOnlyWarnings: show }),
   setSearchTerm: (term) => set({ searchTerm: term }),
   setStatusFilter: (filter) => set({ statusFilter: filter }),
+  setCollectionFilter: (collectionId) => set({ collectionFilter: collectionId }),
   setCurrentPage: (page) => set({ currentPage: page }),
 
   // Computed values
   getFilteredResults: () => {
-    const {
-      validationResults,
-      searchTerm,
-      statusFilter,
-      showOnlyErrors,
-      showOnlyWarnings,
-    } = get();
+    const { validationResults, searchTerm, statusFilter, collectionFilter } = get();
 
     let filtered = validationResults;
 
@@ -123,13 +147,11 @@ export const useValidationStore = create((set, get) => ({
       });
     }
 
-    // Apply error/warning filters
-    if (showOnlyErrors) {
-      filtered = filtered.filter((result) => result.errors.length > 0);
-    }
-
-    if (showOnlyWarnings) {
-      filtered = filtered.filter((result) => result.warnings.length > 0);
+    // Apply collection filter
+    if (collectionFilter !== 'all') {
+      filtered = filtered.filter((result) => {
+        return result.collectionId === collectionFilter;
+      });
     }
 
     return filtered;
@@ -150,17 +172,15 @@ export const useValidationStore = create((set, get) => ({
     };
   },
 
-  // Reset state
-  reset: () => set(initialState),
-
   // Clear results
   clearResults: () =>
-    set({
+    set((state) => ({
       validationResults: [],
       errors: [],
       warnings: [],
       validationProgress: 0,
       processedItems: 0,
-      totalItems: 0,
-    }),
+      // Keep the total items count from contentItems
+      totalItems: state.contentItems.length || 0,
+    })),
 }));

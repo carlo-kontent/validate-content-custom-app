@@ -1,27 +1,22 @@
 import { useState } from 'react';
 import { useValidationStore } from '../store/validationStore';
-import {
-  Search,
-  Filter,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Edit3,
-} from 'lucide-react';
+import { Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import ValidationResultItem from './ValidationResultItem';
 
-const ValidationResults = () => {
+const ValidationResults = ({
+  selectedCollectionIds,
+  collections,
+  collectionCounts,
+}) => {
   const [showFilters, setShowFilters] = useState(false);
 
   const {
     searchTerm,
     statusFilter,
-    showOnlyErrors,
-    showOnlyWarnings,
+    collectionFilter,
     setSearchTerm,
     setStatusFilter,
-    setShowOnlyErrors,
-    setShowOnlyWarnings,
+    setCollectionFilter,
     getPaginatedResults,
     setCurrentPage,
   } = useValidationStore();
@@ -84,7 +79,7 @@ const ValidationResults = () => {
         </div>
 
         {showFilters && (
-          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg'>
             <div>
               <label className='block text-sm font-medium text-gray-700 mb-2'>
                 Status Filter
@@ -101,33 +96,38 @@ const ValidationResults = () => {
               </select>
             </div>
 
-            <div className='flex items-center'>
-              <label className='flex items-center'>
-                <input
-                  type='checkbox'
-                  checked={showOnlyErrors}
-                  onChange={(e) => setShowOnlyErrors(e.target.checked)}
-                  className='h-4 w-4 text-error-600 focus:ring-error-500 border-gray-300 rounded'
-                />
-                <span className='ml-2 text-sm text-gray-700'>
-                  Show only errors
-                </span>
-              </label>
-            </div>
-
-            <div className='flex items-center'>
-              <label className='flex items-center'>
-                <input
-                  type='checkbox'
-                  checked={showOnlyWarnings}
-                  onChange={(e) => setShowOnlyWarnings(e.target.checked)}
-                  className='h-4 w-4 text-warning-600 focus:ring-warning-500 border-gray-300 rounded'
-                />
-                <span className='ml-2 text-sm text-gray-700'>
-                  Show only warnings
-                </span>
-              </label>
-            </div>
+            {/* Collection Filter - Only show if multiple collections were selected */}
+            {selectedCollectionIds && selectedCollectionIds.length > 1 && (
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  Collection Filter
+                </label>
+                <select
+                  value={collectionFilter}
+                  onChange={(e) => {
+                    setCollectionFilter(e.target.value);
+                    setCurrentPage(1); // Reset to first page when filtering
+                  }}
+                  className='input'
+                >
+                  <option value='all'>All Collections</option>
+                  {selectedCollectionIds.map((collectionId) => {
+                    const collection = collections?.find(
+                      (c) => c.id === collectionId
+                    );
+                    const count =
+                      collectionCounts?.find((c) => c.id === collectionId)
+                        ?.count || 0;
+                    return (
+                      <option key={collectionId} value={collectionId}>
+                        {collection?.name || 'Unknown Collection'} ({count}{' '}
+                        items)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
           </div>
         )}
       </div>

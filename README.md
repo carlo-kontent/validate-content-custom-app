@@ -49,10 +49,8 @@ A React application that uses the Kontent.ai Custom App SDK to validate content 
 
    ```env
    # Kontent.ai Configuration
-   VITE_KONTENT_PROJECT_ID=your_project_id_here
    VITE_KONTENT_ENVIRONMENT_ID=your_environment_id_here
    VITE_KONTENT_MANAGEMENT_API_KEY=your_management_api_key_here
-   VITE_KONTENT_DELIVERY_API_KEY=your_delivery_api_key_here
    ```
 
 4. **Start development server**
@@ -65,16 +63,31 @@ A React application that uses the Kontent.ai Custom App SDK to validate content 
 
    Navigate to `http://localhost:5173` to view the application.
 
+6. **Set Environment ID**
+
+   - Click "Environment Settings" in the header
+   - Enter your Kontent.ai Environment ID
+   - Click "Save" - the ID will be stored in your browser
+
 ## Configuration
 
 ### Environment Variables
 
 | Variable                          | Description                                | Required |
 | --------------------------------- | ------------------------------------------ | -------- |
-| `VITE_KONTENT_PROJECT_ID`         | Your Kontent.ai project identifier         | Yes      |
-| `VITE_KONTENT_ENVIRONMENT_ID`     | Environment ID (e.g., production, staging) | Yes      |
+| `VITE_KONTENT_ENVIRONMENT_ID`     | Environment ID (e.g., production, staging) | No\*     |
 | `VITE_KONTENT_MANAGEMENT_API_KEY` | Management API key for content operations  | Yes      |
-| `VITE_KONTENT_DELIVERY_API_KEY`   | Delivery API key for content retrieval     | Yes      |
+
+\*Environment ID is optional when using browser storage. The app will prompt you to set it via the UI.
+
+### Environment ID Management
+
+**Browser Storage (Recommended for Local Development):**
+
+- The application now stores your Environment ID in browser localStorage
+- Click "Environment Settings" in the header to set your Environment ID
+- No need to create a .env file for the Environment ID
+- The ID persists across browser sessions
 
 ### Custom App Configuration
 

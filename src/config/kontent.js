@@ -1,26 +1,38 @@
+import { storage } from '../utils/storage.js';
+
 // Kontent.ai Configuration
 // This configuration automatically detects the environment when running as a Custom App
-// and falls back to environment variables for local development
+// and falls back to browser storage for local development
 
-const getKontentConfig = () => {
-  // Check if running as a Custom App within Kontent.ai platform
-  if (typeof window !== 'undefined' && window.kontent) {
-    // Custom App environment - get config from platform
-    const customAppConfig = window.kontent.getCustomElementConfig();
+export const getKontentConfig = () => {
+  // Check if we're in local development
+  const isLocalDev =
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1';
+
+  if (isLocalDev) {
+    // Use environment ID from browser storage for local development, with fallback to env variable
+    const storedEnvironmentId = storage.getEnvironmentId();
+    const envEnvironmentId = import.meta.env.VITE_KONTENT_ENVIRONMENT_ID;
+
+    if (!storedEnvironmentId && !envEnvironmentId) {
+      throw new Error(
+        'Environment ID not found in browser storage or environment variables. Please set it in the Environment Settings or add VITE_KONTENT_ENVIRONMENT_ID to your .env file.'
+      );
+    }
+
     return {
-      environmentId: customAppConfig.environmentId,
-      managementApiKey: customAppConfig.managementApiKey,
-      deliveryApiKey: customAppConfig.deliveryApiKey,
-      isCustomApp: true,
+      managementApiKey: import.meta.env.VITE_KONTENT_MANAGEMENT_API_KEY,
+      environmentId: storedEnvironmentId || envEnvironmentId,
+      isLocalDev: true,
     };
   }
 
-  // Local development environment - use environment variables
+  // Custom app mode - get context from the SDK
   return {
-    environmentId: import.meta.env.VITE_KONTENT_ENVIRONMENT_ID,
     managementApiKey: import.meta.env.VITE_KONTENT_MANAGEMENT_API_KEY,
-    deliveryApiKey: import.meta.env.VITE_KONTENT_DELIVERY_API_KEY,
-    isCustomApp: false,
+    environmentId: import.meta.env.VITE_KONTENT_ENVIRONMENT_ID,
+    isLocalDev: false,
   };
 };
 
@@ -29,11 +41,7 @@ export const kontentConfig = getKontentConfig();
 // Validation function to ensure all required config is present
 export const validateKontentConfig = () => {
   const config = kontentConfig;
-  const requiredFields = [
-    'environmentId',
-    'managementApiKey',
-    'deliveryApiKey',
-  ];
+  const requiredFields = ['environmentId', 'managementApiKey'];
 
   const missingFields = requiredFields.filter((field) => !config[field]);
 
@@ -49,7 +57,6 @@ export const validateKontentConfig = () => {
 // API endpoints
 export const API_ENDPOINTS = {
   MANAGEMENT: 'https://manage.kontent.ai/v2',
-  DELIVERY: 'https://deliver.kontent.ai',
   PREVIEW: 'https://preview-deliver.kontent.ai',
 };
 
